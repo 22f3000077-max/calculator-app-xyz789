@@ -97,10 +97,11 @@
             background-color: #c01b10;
         }
 
+        /* Updated equals-button styling for new layout: spans 2 columns, not 2 rows */
         #equals-button {
             background-color: #007aff;
             color: #ffffff;
-            grid-row: span 2; /* Spans two rows */
+            grid-column: span 2; /* Spans two columns */
         }
 
         #equals-button:hover {
@@ -111,11 +112,7 @@
             background-color: #005ac0;
         }
 
-        #zero-button {
-            grid-column: span 2; /* Spans two columns */
-            text-align: left;
-            padding-left: 30px; /* Adjust padding for visual alignment */
-        }
+        /* #zero-button specific styling removed as it's now a regular single-column button */
     </style>
 </head>
 <body>
@@ -123,27 +120,30 @@
         <div id="display">
             <input type="text" id="result" value="0" readonly>
         </div>
+        <!-- New button layout including Square Root (√) and Percentage (%) -->
         <button class="calculator-button" id="clear-button">C</button>
+        <button class="calculator-button operator" data-unary-operator="sqrt">√</button>
+        <button class="calculator-button operator" data-unary-operator="percent">%</button>
         <button class="calculator-button operator" data-operator="/">/</button>
-        <button class="calculator-button operator" data-operator="*">*</button>
-        <button class="calculator-button operator" data-operator="-">-</button>
 
         <button class="calculator-button" data-number="7">7</button>
         <button class="calculator-button" data-number="8">8</button>
         <button class="calculator-button" data-number="9">9</button>
-        <button class="calculator-button operator" data-operator="+">+</button>
+        <button class="calculator-button operator" data-operator="*">*</button>
 
         <button class="calculator-button" data-number="4">4</button>
         <button class="calculator-button" data-number="5">5</button>
         <button class="calculator-button" data-number="6">6</button>
-        <button class="calculator-button" id="equals-button">=</button>
+        <button class="calculator-button operator" data-operator="-">-</button>
 
         <button class="calculator-button" data-number="1">1</button>
         <button class="calculator-button" data-number="2">2</button>
         <button class="calculator-button" data-number="3">3</button>
+        <button class="calculator-button operator" data-operator="+">+</button>
 
-        <button class="calculator-button" id="zero-button" data-number="0">0</button>
+        <button class="calculator-button" data-number="0">0</button>
         <button class="calculator-button" data-number=".">.</button>
+        <button class="calculator-button" id="equals-button">=</button>
     </div>
 
     <script>
@@ -154,12 +154,23 @@
         let shouldResetDisplay = false;
 
         function updateDisplay() {
-            // Prevent display from overflowing; limit to a reasonable number of digits
-            if (currentInput.length > 15) {
-                resultDisplay.value = parseFloat(currentInput).toExponential(8);
-            } else {
-                resultDisplay.value = currentInput;
+            let displayValue = currentInput;
+            const num = parseFloat(currentInput);
+
+            // Handle very long numbers or scientific notation
+            if (!isNaN(num)) {
+                // If the number is a float and very long, try toPrecision first, then toExponential
+                if (currentInput.length > 15 && !currentInput.includes('e') && !currentInput.includes('.')) {
+                    displayValue = num.toExponential(8); // Use exponential for very large integers
+                } else if (currentInput.length > 15 && currentInput.includes('.')) {
+                    // For long decimals, try toPrecision
+                    displayValue = num.toPrecision(12);
+                    if (displayValue.length > 15) { // If still too long, use exponential
+                        displayValue = num.toExponential(8);
+                    }
+                }
             }
+            resultDisplay.value = displayValue;
         }
 
         function clear() {
@@ -187,13 +198,16 @@
         }
 
         function chooseOperation(op) {
-            if (currentInput === 'Error: Div by 0') {
+            if (currentInput === 'Error: Div by 0' || currentInput === 'Error: Invalid Input') {
                 // If there's an error, clear it before starting a new operation
                 clear();
             }
             if (currentInput === '') return; // Do nothing if there's no number to operate on
-            if (previousInput !== '') {
-                compute(); // If there's a pending operation, compute it first
+
+            if (previousInput !== '' && operation !== null) {
+                // If there's a pending operation and a new operator is chosen (e.g., 5 + 3 -),
+                // compute the previous one first.
+                compute();
             }
             operation = op;
             previousInput = currentInput;
@@ -205,7 +219,15 @@
             const prev = parseFloat(previousInput);
             const current = parseFloat(currentInput);
 
-            if (isNaN(prev) || isNaN(current)) return; // Don't compute if inputs are invalid
+            // If previous input is invalid or no operation is set, just display current input
+            // and reset the operation state.
+            if (isNaN(prev) || isNaN(current) || operation === null) {
+                operation = null;
+                previousInput = '';
+                shouldResetDisplay = true;
+                updateDisplay();
+                return;
+            }
 
             try {
                 switch (operation) {
@@ -225,17 +247,60 @@
                         computation = prev / current;
                         break;
                     default:
-                        return; // No operation selected
+                        return; // No valid operation selected
                 }
                 currentInput = computation.toString();
             } catch (error) {
-                currentInput = 'Error: Div by 0';
+                if (error.message === 'Division by zero') {
+                    currentInput = 'Error: Div by 0';
+                } else {
+                    currentInput = 'Error'; // Generic error
+                }
             } finally {
                 operation = null;
                 previousInput = '';
                 shouldResetDisplay = true; // After computation, next number input should clear display
                 updateDisplay();
             }
+        }
+
+        function handleUnaryOperator(op) {
+            let num = parseFloat(currentInput);
+
+            if (isNaN(num) || currentInput === 'Error: Div by 0' || currentInput === 'Error: Invalid Input') {
+                // If there's an error or invalid number, clear it before attempting a unary operation
+                if (currentInput.startsWith('Error')) clear();
+                return;
+            }
+
+            switch (op) {
+                case 'sqrt':
+                    if (num < 0) {
+                        currentInput = 'Error: Invalid Input';
+                    } else {
+                        currentInput = Math.sqrt(num).toString();
+                    }
+                    break;
+                case 'percent':
+                    // If an operation is pending, calculate percentage based on the previous number
+                    if (operation && previousInput !== '') {
+                        const prev = parseFloat(previousInput);
+                        if (isNaN(prev)) { // Fallback if previous number is somehow invalid
+                             currentInput = (num / 100).toString();
+                        } else if (operation === '+' || operation === '-') {
+                            // For X + Y% or X - Y%, Y% means (X * Y / 100)
+                            currentInput = (prev * num / 100).toString();
+                        } else { // For X * Y% or X / Y%, Y% means (Y / 100)
+                            currentInput = (num / 100).toString();
+                        }
+                    } else {
+                        // If no operation is pending, just convert current number to percentage (divide by 100)
+                        currentInput = (num / 100).toString();
+                    }
+                    break;
+            }
+            shouldResetDisplay = true; // After unary op, next number clears the display
+            updateDisplay();
         }
 
         // Event Listeners for buttons
@@ -250,6 +315,12 @@
         document.querySelectorAll('[data-operator]').forEach(button => {
             button.addEventListener('click', () => {
                 chooseOperation(button.dataset.operator);
+            });
+        });
+
+        document.querySelectorAll('[data-unary-operator]').forEach(button => {
+            button.addEventListener('click', () => {
+                handleUnaryOperator(button.dataset.unaryOperator);
             });
         });
 
