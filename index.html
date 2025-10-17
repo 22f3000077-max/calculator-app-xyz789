@@ -107,24 +107,26 @@
             <div data-previous-operand class="previous-operand"></div>
             <div data-current-operand class="current-operand"></div>
         </div>
-        <button data-all-clear class="span-two">AC</button>
+        <!-- Updated button layout for new operations -->
+        <button data-all-clear>AC</button>
         <button data-delete>DEL</button>
-        <button data-operation>÷</button>
-        <button data-number>1</button>
-        <button data-number>2</button>
-        <button data-number>3</button>
-        <button data-operation>*</button>
-        <button data-number>4</button>
-        <button data-number>5</button>
-        <button data-number>6</button>
-        <button data-operation>+</button>
+        <button data-operation data-square-root>√</button>
+        <button data-operation data-percentage>%</button>
         <button data-number>7</button>
         <button data-number>8</button>
         <button data-number>9</button>
-        <button data-operation>-</button>
+        <button data-operation>÷</button>
+        <button data-number>4</button>
+        <button data-number>5</button>
+        <button data-number>6</button>
+        <button data-operation>*</button>
+        <button data-number>1</button>
+        <button data-number>2</button>
+        <button data-number>3</button>
+        <button data-operation>+</button>
+        <button data-number class="span-two">0</button>
         <button data-number>.</button>
-        <button data-number>0</button>
-        <button data-equals class="span-two">=</button>
+        <button data-equals>=</button>
     </div>
 
     <script>
@@ -151,13 +153,69 @@
             }
 
             chooseOperation(operation) {
-                if (this.currentOperand === '') return;
+                if (this.currentOperand === '') return; // Cannot start an operation without a number
                 if (this.previousOperand !== '') {
-                    this.compute();
+                    this.compute(); // If there's a previous operation, compute it first
                 }
                 this.operation = operation;
                 this.previousOperand = this.currentOperand;
                 this.currentOperand = '';
+            }
+
+            squareRoot() {
+                const current = parseFloat(this.currentOperand);
+                if (isNaN(current)) return;
+                if (current < 0) {
+                    this.currentOperand = 'Error: Neg Sq Rt';
+                    this.previousOperand = '';
+                    this.operation = undefined;
+                    return;
+                }
+                this.currentOperand = Math.sqrt(current);
+                this.operation = undefined; // Square root is a unary operation, it finalizes current state
+                this.previousOperand = ''; // Clear previous for a fresh start or chained operations
+            }
+
+            applyPercentage() {
+                const current = parseFloat(this.currentOperand);
+                if (isNaN(current)) return;
+
+                if (this.previousOperand === '' || this.operation === undefined) {
+                    // Scenario 1: No previous operation, just compute current / 100
+                    this.currentOperand = current / 100;
+                } else {
+                    // Scenario 2: Previous operation exists (e.g., 100 + 10%)
+                    const prev = parseFloat(this.previousOperand);
+                    if (isNaN(prev)) return;
+
+                    let result;
+                    switch (this.operation) {
+                        case '+':
+                            result = prev + (prev * (current / 100));
+                            break;
+                        case '-':
+                            result = prev - (prev * (current / 100));
+                            break;
+                        case '*':
+                            result = prev * (current / 100);
+                            break;
+                        case '÷':
+                            // Handle division by zero for the percentage part itself
+                            if (current === 0) {
+                                this.currentOperand = 'Error: Div by 0';
+                                this.previousOperand = '';
+                                this.operation = undefined;
+                                return;
+                            }
+                            result = prev / (current / 100);
+                            break;
+                        default:
+                            return;
+                    }
+                    this.currentOperand = result;
+                }
+                this.operation = undefined; // Percentage operation finalizes the calculation if an operation was pending
+                this.previousOperand = ''; // Clear previous for a fresh start
             }
 
             compute() {
@@ -195,9 +253,15 @@
             }
 
             getDisplayNumber(number) {
+                if (number === null || number === undefined || number === '') return '';
                 const stringNumber = number.toString();
-                const integerDigits = parseFloat(stringNumber.split('.')[0]);
-                const decimalDigits = stringNumber.split('.')[1];
+                if (stringNumber.startsWith('Error')) {
+                    return stringNumber;
+                }
+
+                const parts = stringNumber.split('.');
+                const integerDigits = parseFloat(parts[0]);
+                const decimalDigits = parts[1];
                 let integerDisplay;
                 if (isNaN(integerDigits)) {
                     integerDisplay = '';
@@ -215,7 +279,7 @@
                 if (this.currentOperand.toString().startsWith('Error')) {
                     this.currentOperandTextElement.innerText = this.currentOperand;
                     this.previousOperandTextElement.innerText = '';
-                    setTimeout(() => this.clear(), 2000); 
+                    setTimeout(() => this.clearAndRefreshDisplay(), 2000); 
                 } else {
                     this.currentOperandTextElement.innerText = this.getDisplayNumber(this.currentOperand);
                     if (this.operation != null) {
@@ -226,13 +290,22 @@
                     }
                 }
             }
+
+            clearAndRefreshDisplay() {
+                this.clear();
+                this.updateDisplay();
+            }
         }
 
         const numberButtons = document.querySelectorAll('[data-number]');
-        const operationButtons = document.querySelectorAll('[data-operation]');
+        // Select only binary operation buttons, excluding square root and percentage
+        const operationButtons = document.querySelectorAll('[data-operation]:not([data-square-root]):not([data-percentage])'); 
         const equalsButton = document.querySelector('[data-equals]');
         const deleteButton = document.querySelector('[data-delete]');
         const allClearButton = document.querySelector('[data-all-clear]');
+        const squareRootButton = document.querySelector('[data-square-root]'); 
+        const percentageButton = document.querySelector('[data-percentage]'); 
+
         const previousOperandTextElement = document.querySelector('[data-previous-operand]');
         const currentOperandTextElement = document.querySelector('[data-current-operand]');
 
@@ -252,20 +325,35 @@
             });
         });
 
-        equalsButton.addEventListener('click', button => {
+        equalsButton.addEventListener('click', () => {
             calculator.compute();
             calculator.updateDisplay();
         });
 
-        allClearButton.addEventListener('click', button => {
+        allClearButton.addEventListener('click', () => {
             calculator.clear();
             calculator.updateDisplay();
         });
 
-        deleteButton.addEventListener('click', button => {
+        deleteButton.addEventListener('click', () => {
             calculator.delete();
             calculator.updateDisplay();
         });
+
+        // Event listeners for new operations
+        if (squareRootButton) {
+            squareRootButton.addEventListener('click', () => {
+                calculator.squareRoot();
+                calculator.updateDisplay();
+            });
+        }
+
+        if (percentageButton) {
+            percentageButton.addEventListener('click', () => {
+                calculator.applyPercentage();
+                calculator.updateDisplay();
+            });
+        }
     </script>
 </body>
 </html>
