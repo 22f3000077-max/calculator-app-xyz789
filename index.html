@@ -82,17 +82,10 @@
             background-color: #f3b469;
         }
 
-        .equals {
-            background-color: #28a745;
-            grid-column: span 2; /* Make equals button span two columns */
-        }
-
-        .equals:hover {
-            background-color: #38c156;
-        }
-
+        /* Specific styling for clear button to span two columns */
         .clear {
             background-color: #dc3545;
+            grid-column: span 2; /* Now in CSS */
         }
 
         .clear:hover {
@@ -103,32 +96,61 @@
         .zero {
             grid-column: span 2;
         }
+
+        /* Styling for new function buttons (sqrt, percentage) */
+        .function {
+            background-color: #6c757d; /* A neutral gray */
+        }
+
+        .function:hover {
+            background-color: #8a9299;
+        }
+
+        /* Update equals to span all four columns */
+        .equals {
+            background-color: #28a745;
+            grid-column: span 4; /* Make equals button span all four columns */
+        }
+
+        .equals:hover {
+            background-color: #38c156;
+        }
     </style>
 </head>
 <body>
     <div class="calculator">
         <input type="text" id="display" value="0" readonly>
         <div class="buttons-grid">
-            <button class="btn clear" data-action="clear" style="grid-column: span 2;">C</button>
+            <!-- Row 1: Clear, Sqrt, Percentage, Divide -->
+            <button class="btn clear" data-action="clear">C</button>
+            <button class="btn function" data-action="sqrt">√</button>
+            <button class="btn function" data-action="percentage">%</button>
             <button class="btn operator" data-action="operator" data-value="/">/</button>
-            <button class="btn operator" data-action="operator" data-value="*">x</button>
 
+            <!-- Row 2: 7, 8, 9, Multiply -->
             <button class="btn" data-action="number" data-value="7">7</button>
             <button class="btn" data-action="number" data-value="8">8</button>
             <button class="btn" data-action="number" data-value="9">9</button>
-            <button class="btn operator" data-action="operator" data-value="-">-</button>
+            <button class="btn operator" data-action="operator" data-value="*">x</button>
 
+            <!-- Row 3: 4, 5, 6, Subtract -->
             <button class="btn" data-action="number" data-value="4">4</button>
             <button class="btn" data-action="number" data-value="5">5</button>
             <button class="btn" data-action="number" data-value="6">6</button>
-            <button class="btn operator" data-action="operator" data-value="+">+</button>
+            <button class="btn operator" data-action="operator" data-value="-">-</button>
 
+            <!-- Row 4: 1, 2, 3, Add -->
             <button class="btn" data-action="number" data-value="1">1</button>
             <button class="btn" data-action="number" data-value="2">2</button>
             <button class="btn" data-action="number" data-value="3">3</button>
-            <button class="btn" data-action="decimal" data-value=".">.</button>
+            <button class="btn operator" data-action="operator" data-value="+">+</button>
             
+            <!-- Row 5: Zero, Decimal -->
             <button class="btn zero" data-action="number" data-value="0">0</button>
+            <button class="btn" data-action="decimal" data-value=".">.</button>
+            <button class="btn equals" data-action="equals"></button> <!-- Placeholder, equals spans full width in next row -->
+
+            <!-- Row 6: Equals button spans all four columns -->
             <button class="btn equals" data-action="equals">=</button>
         </div>
     </div>
@@ -241,6 +263,42 @@
             updateDisplay();
         }
 
+        function handleSqrt() {
+            let value = parseFloat(currentInput);
+            if (isNaN(value) || value < 0) {
+                clear();
+                currentInput = 'Error';
+                updateDisplay();
+                return;
+            }
+            currentInput = parseFloat(Math.sqrt(value).toFixed(10)).toString();
+            updateDisplay();
+            waitingForSecondOperand = false; 
+        }
+
+        function handlePercentage() {
+            let value = parseFloat(currentInput);
+            if (isNaN(value)) {
+                clear();
+                currentInput = 'Error';
+                updateDisplay();
+                return;
+            }
+
+            if (operator && previousInput !== '') {
+                const prev = parseFloat(previousInput);
+                // For 'A op B%', B is replaced by (A * B / 100)
+                currentInput = (prev * (value / 100)).toString();
+            } else {
+                // For 'X%', X is replaced by (X / 100)
+                currentInput = (value / 100).toString();
+            }
+            
+            currentInput = parseFloat(parseFloat(currentInput).toFixed(10)).toString(); 
+            updateDisplay();
+            waitingForSecondOperand = false; 
+        }
+
         // Event Listeners for buttons using delegation
         document.querySelector('.buttons-grid').addEventListener('click', (event) => {
             const target = event.target;
@@ -266,6 +324,12 @@
                     break;
                 case 'clear':
                     clear();
+                    break;
+                case 'sqrt':
+                    handleSqrt();
+                    break;
+                case 'percentage':
+                    handlePercentage();
                     break;
             }
         });
