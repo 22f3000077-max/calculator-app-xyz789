@@ -110,10 +110,7 @@
              background-color: #b0b0b0;
         }
 
-        /* Specific layout adjustments for 0 and = */
-        .button.zero {
-            grid-column: span 2;
-        }
+        /* Specific layout adjustments for = */
         .button.equal {
             grid-row: span 2; /* Make '=' button span two rows */
         }
@@ -137,16 +134,16 @@
             <button class="button number">4</button>
             <button class="button number">5</button>
             <button class="button number">6</button>
-            <button class="button equal" style="grid-row: span 2;">=</button> <!-- Spans 2 rows, starts at col 4, row 3 -->
+            <button class="button equal" style="grid-row: span 2; grid-column: 4;">=</button>
 
             <button class="button number">1</button>
             <button class="button number">2</button>
             <button class="button number">3</button>
-            <!-- The '=' button occupies the 4th column of this row -->
 
-            <button class="button number zero" style="grid-column: span 2;">0</button>
+            <button class="button number">0</button>
             <button class="button decimal">.</button>
-            <!-- The 4th cell here is implicitly empty, covered by '=' -->
+            <button class="button operator" data-op="sqrt">√</button>
+            <button class="button operator" data-op="percent">%</button>
         </div>
     </div>
 
@@ -164,7 +161,7 @@
         }
 
         function appendNumber(number) {
-            if (currentInput === '0' || waitingForSecondOperand) {
+            if (currentInput === '0' || waitingForSecondOperand || currentInput.startsWith('Error')) {
                 currentInput = number;
                 waitingForSecondOperand = false;
             } else {
@@ -174,7 +171,7 @@
         }
 
         function appendDecimal() {
-            if (waitingForSecondOperand) {
+            if (waitingForSecondOperand || currentInput.startsWith('Error')) {
                 currentInput = '0.';
                 waitingForSecondOperand = false;
             } else if (!currentInput.includes('.')) {
@@ -184,11 +181,11 @@
         }
 
         function chooseOperator(nextOperator) {
-            if (currentInput === '' || currentInput === 'Error: Div by 0') return;
+            if (currentInput === '' || currentInput.startsWith('Error')) return;
 
             if (previousInput !== null && !waitingForSecondOperand) {
                 calculate();
-                if (currentInput.startsWith('Error')) return; // Stop if previous calculation resulted in error
+                if (currentInput.startsWith('Error')) return;
             }
 
             operator = nextOperator;
@@ -198,7 +195,7 @@
 
         function calculate() {
             if (previousInput === null || operator === null || currentInput === '') {
-                return; // Nothing to calculate
+                return;
             }
 
             const prev = parseFloat(previousInput);
@@ -234,12 +231,48 @@
                 default:
                     return;
             }
-            // Ensure result is not too long for display, e.g., limit decimal places
-            currentInput = String(parseFloat(result.toFixed(10))); // Limit to 10 decimal places to avoid floating point issues, then parse to remove trailing zeros
+            
+            currentInput = String(parseFloat(result.toFixed(10)));
             operator = null;
             previousInput = null;
             waitingForSecondOperand = false;
             updateDisplay();
+        }
+
+        function squareRoot() {
+            if (currentInput === '' || currentInput.startsWith('Error')) return;
+
+            const num = parseFloat(currentInput);
+            if (num < 0) {
+                currentInput = 'Error: Neg Sqrt';
+            } else {
+                currentInput = String(parseFloat(Math.sqrt(num).toFixed(10)));
+            }
+            updateDisplay();
+            previousInput = null;
+            operator = null;
+            waitingForSecondOperand = true;
+        }
+
+        function percentage() {
+            if (currentInput === '' || currentInput.startsWith('Error')) return;
+
+            const current = parseFloat(currentInput);
+
+            if (previousInput !== null && operator !== null) {
+                const prev = parseFloat(previousInput);
+                let percentValue;
+                if (operator === '+' || operator === '-') {
+                    percentValue = prev * (current / 100);
+                } else {
+                    percentValue = current / 100;
+                }
+                currentInput = String(parseFloat(percentValue.toFixed(10)));
+            } else {
+                currentInput = String(parseFloat((current / 100).toFixed(10)));
+            }
+            updateDisplay();
+            waitingForSecondOperand = false;
         }
 
         function clearCalculator() {
@@ -261,11 +294,18 @@
 
             const button = event.target;
             const buttonText = button.textContent;
+            const dataOp = button.dataset.op;
 
             if (button.classList.contains('number')) {
                 appendNumber(buttonText);
             } else if (button.classList.contains('operator')) {
-                chooseOperator(buttonText);
+                if (dataOp === 'sqrt') {
+                    squareRoot();
+                } else if (dataOp === 'percent') {
+                    percentage();
+                } else {
+                    chooseOperator(buttonText);
+                }
             } else if (button.classList.contains('decimal')) {
                 appendDecimal();
             } else if (button.classList.contains('equal')) {
@@ -275,9 +315,7 @@
             }
         });
 
-        // Initialize display
         updateDisplay();
-
     </script>
 </body>
 </html>
